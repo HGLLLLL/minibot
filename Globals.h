@@ -11,6 +11,7 @@
 #include <OneButton.h>
 #include <ESP32Encoder.h>
 #include "FluxGarage_RoboEyes.h"
+#include "esp_sleep.h"
 
 // ... (外部變數宣告 維持不變) ...
 extern TwoWire I2C_RTC;   
@@ -23,6 +24,13 @@ extern DFRobotDFPlayerMini myDFPlayer;
 extern OneButton btnL;
 extern OneButton btnR;
 extern ESP32Encoder encoder;
+
+extern bool isAsleep;
+
+extern int displayBrightness;
+extern volatile bool isBrightnessChanged; // 新增這行
+extern bool isTimeSetting;
+extern bool wasMusicPlayingBeforeAlarm; // 新增：記錄響鈴前是否在聽歌
 
 // System Data
 extern AppMode currentMode;
@@ -56,6 +64,8 @@ enum MusicSelection {
     SEL_VOL,    // 音量鍵
     SEL_PREV    // 上一首
 };
+extern const char* composerNames[];
+extern const int totalTracks;
 
 extern MusicSelection musicSelection; // 目前選中的按鈕
 extern bool isVolumeAdjusting;        // 是否正在調整音量模式

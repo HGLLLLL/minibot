@@ -21,10 +21,17 @@ bool isMusicPlaying = false;
 bool isBotTired = false;
 bool isActionInProgress = false;
 
+bool isAsleep = false;
+
+int displayBrightness = 150;
+volatile bool isBrightnessChanged = false; // 初始化
+bool isTimeSetting = false;
+bool wasMusicPlayingBeforeAlarm = false; // 初始化
+
 // --- [新增] 音樂播放器變數初始化 ---
 MusicSelection musicSelection = SEL_PLAY; // 預設選中播放鍵
 bool isVolumeAdjusting = false;
-int currentVolume = 20; // 預設音量
+int currentVolume = 15; // 預設音量
 
 // --- [新增] 番茄鐘預設值 ---
 PomoState pomoState = POMO_SETUP_WORK;
@@ -63,10 +70,18 @@ const unsigned char image_book_bits[] PROGMEM = {
   0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
 };
 
+const char* composerNames[] = {
+    "Mozart",    // 03.mp3
+    "Beethoven", // 04.mp3
+    "Chopin",    // 05.mp3
+    "Richard",   // 06.mp3
+    "Bach",      // 07.mp3
+    "Vivaldi"    // 08.mp3
+};
+const int totalTracks = sizeof(composerNames) / sizeof(composerNames[0]);
+
 // 200 句解答 (存於 PROGMEM 以節省 RAM)
 const char* const answers_pool[] PROGMEM = {
-    "Yes", "No", "Ask again later", "Maybe", "Absolutely",
-    "Don't bet on it", "Focus and ask", "It is certain", "Very likely", "Not now",
     "Go for it", "Wait for it", "Too early", "It is decisive", "Unlikely",
     "Believe in it", "Trust yourself", "Follow your heart", "Ignore the doubt", "Count on it",
     "Let it go", "Keep going", "Take a break", "Try harder", "Look closer",
@@ -80,14 +95,17 @@ const char* const answers_pool[] PROGMEM = {
     "It's time", "Not yet", "Soon", "Later", "Tomorrow",
     "Today", "Right now", "In a year", "Forget that", "Remember this",
     "Choose this", "Choose that", "Both", "Neither", "All in",
-    "Step back", "Jump", "Walk away", "Run", "Stop",
-    "Look up", "Look down", "Inside you", "Ask a friend", "Ask family",
+    "Step back", "Walk away", "Stop","Look up", "Look down", "Inside you", "Ask a friend", "Ask family",
     "Trust luck", "Hard work pays", "Dream big", "Wake up", "Sleep on it",
     "It will pass", "Good things coming", "Be ready", "Watch out", "Safe choice",
     "Wild guess", "Sure thing", "No way", "Possible", "Impossible",
+    "Drink warm water", "take some rest", "Wear a jacket", "Eat more!",
+    "Treat yourself", "Take a sick day", "Go shopping!", "Take a deep breath",
+    "You deserve a break", "Drink some coffee", "Have some tea", "Stop working!",
+    "Time for a vacation", "Listen to music", "Close your laptop", "Protect your eyes",
     "Worth it", "Waste of time", "Big yes", "Small no", "Do it",
     "Don't do it", "Keep secret", "Tell everyone", "Help others", "Help yourself",
-    "Be honest", "Tell a lie", "Stay true", "Fake it", "Make it",
+    "Be honest",  "Stay true", "Fake it", "Make it",
     "Break it", "Fix it", "Leave it", "Take it", "Give it",
     "Save it", "Spend it", "Invest", "Wait and see", "Take charge",
     "Let other lead", "Cooperate", "Compete", "Win", "Learn",
@@ -96,14 +114,12 @@ const char* const answers_pool[] PROGMEM = {
     "Serious", "Have fun", "Relax", "Hurry", "Slow down",
     "Speed up", "Turn left", "Turn right", "Go straight", "Go back",
     "New start", "End it", "Continue", "Pause", "Resume",
-    "Accept it", "Reject it", "Fight", "Surrender", "Negotiate",
-    "Demand", "Offer", "Ask nicely", "Just take it", "Wait",
+    "Accept it", "Reject it", "Negotiate", "Ask nicely", "Just take it", "Wait",
     "See the signs", "Ignore signs", "Trust fate", "Make fate", "Destiny",
-    "Luck", "Skill", "Effort", "Chance", "Choice",
+    "Luck",
     "Yes, please", "No, thanks", "Maybe later", "Right away", "Eventually",
     "Within weeks", "Within months", "Years away", "Any moment", "Never ever",
-    "For sure", "I doubt it", "Who knows?", "Only you know", "Ask nature",
-    "Look within", "Look without", "Seek truth", "Find peace", "Create joy"
+    "For sure", "I doubt it", "Who knows?", "Only you know", "Ask nature"
 };
 
 const int answers_count = sizeof(answers_pool) / sizeof(answers_pool[0]);

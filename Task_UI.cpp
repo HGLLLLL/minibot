@@ -4,6 +4,8 @@
 void TaskUICode(void * parameter);
 U8G2_FOR_ADAFRUIT_GFX u8g2_gfx;
 
+extern volatile bool isBrightnessChanged;
+extern bool isTimeSetting;
 // --- Bitmap Resources (XBM) ---
 
 // 1. [保留] 箭頭資源
@@ -59,20 +61,24 @@ long lastShiftTime = 0;
 const long shiftInterval = 60000; 
 int x_offset = 0;
 int y_offset = 0;
+unsigned long nextMoodSwitchTime = 0; // 下次切換表情的時間
+bool isManualMood = false;
 AppMode lastMode = MODE_EYES;
 
-// 1. Draw Clock
 void drawClockPage() {
     display.clearDisplay(); 
     if (millis() - lastShiftTime > shiftInterval) { 
         x_offset = random(0, 3); y_offset = random(0, 3); lastShiftTime = millis(); 
     }
+    
     char sDate[6]; sprintf(sDate, "%02d/%02d", currentDateTime.month(), currentDateTime.day());
     char sYear[5]; sprintf(sYear, "%d", currentDateTime.year());
     const char* sDay = weekDays[currentDateTime.dayOfTheWeek()];
+    
     int rawHour = currentDateTime.hour();
     int h12 = rawHour;
     if (h12 == 0) h12 = 12; else if (h12 > 12) h12 -= 12;
+    
     char sHour[3]; sprintf(sHour, "%02d", h12);
     char sMin[3]; sprintf(sMin, "%02d", currentDateTime.minute());
     
@@ -83,18 +89,38 @@ void drawClockPage() {
     u8g2_gfx.setFont(u8g2_font_profont29_tr);
     int currentX = 15 + x_offset;
     int BaseY = 49 + y_offset;
-    u8g2_gfx.setCursor(currentX, BaseY); u8g2_gfx.print(sHour);
+
+    // 繪製小時
+    u8g2_gfx.setCursor(currentX, BaseY); 
+    u8g2_gfx.print(sHour);
+    
     currentX += u8g2_gfx.getUTF8Width(sHour);
     int spaceW = u8g2_gfx.getUTF8Width(" ");
     currentX += spaceW;
+
+    // 繪製冒號
     if (millis() % 1000 < 500) {
-        u8g2_gfx.setCursor(currentX, BaseY - 2); u8g2_gfx.print(":");
+        u8g2_gfx.setCursor(currentX, BaseY - 2); 
+        u8g2_gfx.print(":");
     }
-    currentX += u8g2_gfx.getUTF8Width(":"); currentX += spaceW;
-    u8g2_gfx.setCursor(currentX, BaseY); u8g2_gfx.print(sMin);
-    u8g2_gfx.setFont(u8g2_font_t0_12b_tr); u8g2_gfx.setCursor(56 + x_offset, 13 + y_offset); u8g2_gfx.print(sDay);
+
+    currentX += u8g2_gfx.getUTF8Width(":"); 
+    currentX += spaceW;
+
+    // --- 核心修正：僅分鐘閃爍 ---
+    // 非調時模式 -> 正常顯示
+    // 調時模式下 -> 500ms 閃爍一次
+    if (!isTimeSetting || (millis() % 500 < 250)) {
+        u8g2_gfx.setCursor(currentX, BaseY); 
+        u8g2_gfx.print(sMin);
+    }
+    
+    // 繪製日期與年份
+    u8g2_gfx.setFont(u8g2_font_t0_12b_tr); 
+    u8g2_gfx.setCursor(56 + x_offset, 13 + y_offset); u8g2_gfx.print(sDay);
     u8g2_gfx.setCursor(99 + x_offset, 13 + y_offset); u8g2_gfx.print(sYear);
     u8g2_gfx.setCursor(5 + x_offset, 13 + y_offset); u8g2_gfx.print(sDate);
+    
     display.display();
 }
 
@@ -126,19 +152,26 @@ void drawMusicPage() {
     } 
     // --- 狀態：正常選單 ---
     else {
-        // 1. 繪製基礎圖層
         display.drawXBitmap(4, 3, image_Volup_bits, 8, 6, SH110X_WHITE);
 
-        // [關鍵修改] 歌名顯示邏輯
-        u8g2_gfx.setFont(u8g2_font_timR14_tr); 
-        String trackInfo = "Track " + String(currentMusicTrack);
+        u8g2_gfx.setFont(u8g2_font_profont17_tr); 
+        String trackInfo;
         
-        // 計算文字寬度並置中
+        // 使用陣列索引顯示名字，currentMusicTrack 是從 1 開始，所以要 -1
+        if (currentMusicTrack >= 1 && currentMusicTrack <= totalTracks) {
+            trackInfo = String(composerNames[currentMusicTrack - 1]);
+        } else {
+            trackInfo = "Track " + String(currentMusicTrack);
+        }
+        
+        // 計算置中
         int titleW = u8g2_gfx.getUTF8Width(trackInfo.c_str());
-        int titleX = (128 - titleW) / 2;
-        
-        u8g2_gfx.setCursor(titleX, 33); // 高度維持 33
+        u8g2_gfx.setCursor((128 - titleW) / 2, 33); 
         u8g2_gfx.print(trackInfo);
+
+        // int titleX = (128 - titleW) / 2;
+        // u8g2_gfx.setCursor(titleX, 33); // 高度維持 33
+        // u8g2_gfx.print(trackInfo);
 
         display.drawXBitmap(12, 41, image_music_prev_bits, 16, 16, SH110X_WHITE);
         display.drawXBitmap(102, 41, image_music_next_bits, 16, 16, SH110X_WHITE);
@@ -312,12 +345,41 @@ void TaskUICode(void * parameter) {
     display.clearDisplay(); display.display();
 
     roboEyes.begin(128, 64, 60); 
-    roboEyes.setHeight(35, 35); roboEyes.setWidth(40, 40); roboEyes.setSpacebetween(20); 
-    roboEyes.setAutoblinker(true, 4, 2); roboEyes.setCuriosity(true); roboEyes.setIdleMode(true, 1, 2);
+    roboEyes.setHeight(40, 40); roboEyes.setWidth(30, 30); roboEyes.setSpacebetween(20); roboEyes.setBorderradius(20, 20);
+    roboEyes.setAutoblinker(true, 4, 2); roboEyes.setCuriosity(true); roboEyes.setIdleMode(true, 1, 4);
     
     lastMode = currentMode;
 
     for(;;) {
+
+        // --- 處理睡眠時的 OLED 關閉與喚醒 ---
+        static bool lastAsleepState = false;
+
+        if (isAsleep) {
+            if (!lastAsleepState) {
+                // 關閉螢幕顯示，防止 OLED 烙印並極大化省電
+                display.clearDisplay();
+                display.display();
+                
+                // Adafruit_SH1106G 通常支援這個指令來關閉面板驅動
+                // (如果編譯報錯說沒有 enableDisplay，把下面兩行註解掉即可，光是 clearDisplay 也有省電效果)
+                // display.enableDisplay(false); 
+                
+                lastAsleepState = true;
+            }
+            vTaskDelay(pdMS_TO_TICKS(100)); // 睡眠中讓 UI 任務放慢腳步，釋放資源
+            continue; // ❗ 重要：直接 continue 跳過下方的繪圖邏輯
+        } else if (lastAsleepState) {
+            // 剛被喚醒，重新啟動面板
+            // display.enableDisplay(true); 
+            lastAsleepState = false;
+            isUpdateRequired = true; // 強制重繪當前模式的畫面
+        }
+
+        if (isBrightnessChanged) {
+              display.setContrast(displayBrightness); // 由 UI 任務核心統一執行 SPI 指令
+              isBrightnessChanged = false;
+        }
         if (currentMode != lastMode) {
             display.clearDisplay();
             if (currentMode == MODE_EYES) {
@@ -328,12 +390,37 @@ void TaskUICode(void * parameter) {
 
         switch (currentMode) {
             case MODE_EYES:
-                if (isBotTired) { roboEyes.setMood(TIRED); }
+                if (isBotTired) {
+                    // --- 3. 疲勞模式邏輯 ---
+                    roboEyes.setMood(TIRED);       // 疲勞時回到預設表情
+                    roboEyes.setCuriosity(false);    // 關閉好奇心 (防止眼睛亂飄)
+                    roboEyes.setIdleMode(false);     // 關閉自動移動
+                    roboEyes.setPosition(S);         // 固定看下方
+                    // 眨眼功能會因為 roboEyes.setAutoblinker(true, ...) 繼續運作
+                } 
+                else {
+                    // --- 2. 預設模式：隨機切換開心/預設 ---
+                    if (millis() >= nextMoodSwitchTime) {
+                        // 隨機決定下一階段持續多久 (3~8秒)
+                        nextMoodSwitchTime = millis() + random(3000, 8000);
+                        
+                        // 隨機切換表情 (50% 機率)
+                        if (random(100) > 85) {
+                            roboEyes.setMood(HAPPY);
+                        } else {
+                            roboEyes.setMood(DEFAULT);
+                        }
+                        
+                        // 確保正常模式下開啟好奇心與自動移動
+                        roboEyes.setCuriosity(true);
+                        roboEyes.setIdleMode(true);
+                    }
+                }
                 roboEyes.update();
                 break;
             case MODE_CLOCK:
                 drawClockPage();
-                vTaskDelay(pdMS_TO_TICKS(100));
+                vTaskDelay(pdMS_TO_TICKS(50));
                 continue;
             case MODE_MUSIC:
                 if (isUpdateRequired) { drawMusicPage(); isUpdateRequired = false; }
