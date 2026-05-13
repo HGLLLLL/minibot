@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minibot OLED Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Minibot OLED Simulator</h1>
+        <div class="oled-frame">
+            <canvas id="oled" width="128" height="64"></canvas>
+        </div>
+        <div class="controls">
+            <div class="key-group">
+                <span class="key">←</span> <span class="label">Left Btn (L)</span>
+            </div>
+            <div class="key-group">
+                <span class="key">→</span> <span class="label">Right Btn (R)</span>
+            </div>
+            <div class="key-group">
+                <span class="key">↑↓</span> <span class="label">Encoder</span>
+            </div>
+        </div>
+        <div class="mode-display">
+            Mode: <span id="modeLabel">ANSWER</span>
+        </div>
+    </div>
+    <script src="sim.js"></script>
+</body>
+</html>

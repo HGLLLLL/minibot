@@ -1,7 +1,7 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
-// ... (原本的 include 維持不變) ...
+// ... (original includes unchanged) ...
 #include "Config.h"
 #include <Wire.h>
 #include <Adafruit_SH110X.h> 
@@ -13,7 +13,7 @@
 #include "FluxGarage_RoboEyes.h"
 #include "esp_sleep.h"
 
-// ... (外部變數宣告 維持不變) ...
+// ... (external variable declarations unchanged) ...
 extern TwoWire I2C_RTC;   
 extern Adafruit_SH1106G display;
 extern RoboEyes<Adafruit_SH1106G> roboEyes;
@@ -28,9 +28,9 @@ extern ESP32Encoder encoder;
 extern bool isAsleep;
 
 extern int displayBrightness;
-extern volatile bool isBrightnessChanged; // 新增這行
+extern volatile bool isBrightnessChanged; // Brightness change flag
 extern bool isTimeSetting;
-extern bool wasMusicPlayingBeforeAlarm; // 新增：記錄響鈴前是否在聽歌
+extern bool wasMusicPlayingBeforeAlarm; // Whether music was playing before alarm
 
 // System Data
 extern AppMode currentMode;
@@ -41,7 +41,7 @@ extern bool isMusicPlaying;
 extern bool isBotTired;    
 extern bool isActionInProgress;            
 
-// 番茄鐘變數
+// Pomodoro timer variables
 extern PomoState pomoState;
 extern int pomoWorkTime;      
 extern int pomoShortBreak;    
@@ -50,25 +50,32 @@ extern long pomoTimerSeconds;
 extern int pomoRoundCounter;  
 extern int pomoTotalDuration; 
 
-// 解答之書變數
+// Answer Book variables
 extern bool isAnswerRevealed;     
 extern const char* currentAnswer; 
 extern const char* const answers_pool[]; 
 extern const int answers_count;   
 extern const unsigned char image_book_bits[]; 
 
-// --- [新增] 音樂播放器狀態變數 ---
+// Answer Book slot machine animation
+extern bool isAnswerSpinning;
+extern unsigned long answerSpinStartTime;
+extern float answerSpinSpeed;
+extern float answerSpinOffset;
+extern int answerReelIndices[5];
+
+// --- Music player state variables ---
 enum MusicSelection {
-    SEL_PLAY,   // 播放鍵
-    SEL_NEXT,   // 下一首
-    SEL_VOL,    // 音量鍵
-    SEL_PREV    // 上一首
+    SEL_PLAY,   // Play button
+    SEL_NEXT,   // Next track
+    SEL_VOL,    // Volume
+    SEL_PREV    // Previous track
 };
-extern const char* composerNames[];
+extern const char* const composerNames[];
 extern const int totalTracks;
 
-extern MusicSelection musicSelection; // 目前選中的按鈕
-extern bool isVolumeAdjusting;        // 是否正在調整音量模式
-extern int currentVolume;             // 當前音量 (0-30)
+extern MusicSelection musicSelection; // Currently selected button
+extern bool isVolumeAdjusting;        // Whether volume adjust mode is active
+extern int currentVolume;             // Current volume (0-30)
 
 #endif

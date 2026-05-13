@@ -18,17 +18,17 @@
 
 #define DFPLAYER_TX 26 
 #define DFPLAYER_RX 27 
-#define DFPLAYER_BUSY 25 // 重要：用來判斷音效是否播完 
+#define DFPLAYER_BUSY 25 // Important: used to detect if sound finished playing 
 
 #define BTN_L_PIN   4
 #define BTN_R_PIN   5  
 #define ENC_DT      19 
 #define ENC_CLK     18 
 
-// --- Music Tracks Definition (SD卡對應) ---
-#define TRACK_BUTTON    1 // 0001.mp3: 按鈕音 
-#define TRACK_ALARM     2 // 0002.mp3: 番茄鐘轉換鈴聲 
-#define TRACK_MOZART    3 // 0003.mp3: 莫札特奏鳴曲 
+// --- Music Tracks Definition (SD card mapping) ---
+#define TRACK_BUTTON    1 // 0001.mp3: Button click sound 
+#define TRACK_ALARM     2 // 0002.mp3: Pomodoro transition alarm 
+#define TRACK_MOZART    3 // 0003.mp3: Mozart Sonata 
 
 enum AppMode { MODE_MENU, MODE_EYES, MODE_CLOCK, MODE_MUSIC, MODE_POMODORO, MODE_ANSWER };
 enum PomoState {
@@ -39,7 +39,7 @@ enum PomoState {
     POMO_PAUSED,
     POMO_BREAK_RUNNING,
     POMO_BREAK_PAUSED,
-    POMO_WAIT_ALARM  // <--- 必須要有這個
+    POMO_WAIT_ALARM  // Required: wait for alarm sound to finish
 };
 
 #endif

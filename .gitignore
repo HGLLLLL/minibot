@@ -1,0 +1,37 @@
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Arduino Build and IDE files
+build/
+*.elf
+*.hex
+*.bin
+*.map
+*.o
+*.a
+*.ino.cpp
+.arduino15/
+packages/
+
+# VS Code / PlatformIO
+.vscode/
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang-format
+.gcc-flags.json
+
+# User specific temporary files
+*.md 
+/img_src/
+/img/src/
+
+# Downloaded tools & archives (Added during our session)
+bdfconv.exe
+otf2bdf_archive.zip

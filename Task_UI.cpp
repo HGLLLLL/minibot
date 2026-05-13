@@ -1,18 +1,34 @@
 #include "Globals.h"
 #include <U8g2_for_Adafruit_GFX.h>
 
+#include "Ubuntu_10p_b.h"
+#include "Ubuntu_14p_b.h"
+#include "Ubuntu_18p_b.h"
+#include "Ubuntu_24p_b.h"
+
 void TaskUICode(void * parameter);
 U8G2_FOR_ADAFRUIT_GFX u8g2_gfx;
+
+// Helper for Adafruit GFX text width calculation
+int getAdafruitTextWidth(const char* text) {
+    int16_t x1, y1; uint16_t w, h;
+    display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+    return w;
+}
+
+int getAdafruitTextWidth(String text) {
+    return getAdafruitTextWidth(text.c_str());
+}
 
 extern volatile bool isBrightnessChanged;
 extern bool isTimeSetting;
 // --- Bitmap Resources (XBM) ---
 
-// 1. [保留] 箭頭資源
+// 1. Arrow icons (retained)
 static const unsigned char image_arrow_curved_left_down_bits[] = {0x18,0x7d,0x8f,0x07,0x0f};
 static const unsigned char image_arrow_curved_right_down_bits[] = {0x18,0xbe,0xf1,0xe0,0xf0};
 
-// 2. [音樂播放器] 基礎空心圖示 (Base Icons)
+// 2. Music player base icons (outline)
 static const unsigned char image_music_prev_bits[] = {
   0x00,0x00,0x0f,0xe0,0x09,0x90,0x09,0x8c,0x09,0x82,0x89,0x81,0x49,0x80,0x39,0x80,
   0x39,0x80,0x49,0x80,0x89,0x81,0x09,0x82,0x09,0x8c,0x09,0x90,0x0f,0xe0,0x00,0x00
@@ -21,7 +37,7 @@ static const unsigned char image_music_play_bits[] = {
   0x03,0x00,0x07,0x00,0x19,0x00,0x61,0x00,0x81,0x01,0x01,0x06,0x01,0x18,0x01,0x60,
   0x01,0x18,0x01,0x06,0x81,0x01,0x61,0x00,0x19,0x00,0x07,0x00,0x03,0x00,0x00,0x00
 };
-// 暫停鍵底圖 (12x16)
+// Pause button base icon (12x16)
 static const unsigned char image_music_pause_bits[] = {
   0x9f,0x0f,0x91,0x08,0x91,0x08,0x91,0x08,0x91,0x08,0x91,0x08,0x91,0x08,0x91,0x08,
   0x91,0x08,0x91,0x08,0x91,0x08,0x91,0x08,0x91,0x08,0x91,0x08,0x9f,0x0f,0x00,0x00
@@ -32,7 +48,7 @@ static const unsigned char image_music_next_bits[] = {
 };
 static const unsigned char image_Volup_bits[] = {0x48,0x8c,0xaf,0xaf,0x8c,0x48};
 
-// 3. [音樂播放器] 填充圖層 (Fill Layers)
+// 3. Music player fill layers (selected state)
 static const unsigned char image_fill_prev[] = { 
   0x00,0x20,0x03,0x30,0x03,0x38,0x03,0x3e,0x03,0x3f,0xc3,0x3f,0xe3,0x3f,0xe3,0x7f,
   0xc3,0x7f,0x03,0x7f,0x03,0x7e,0x03,0x7a,0x03,0x70,0x00,0x40
@@ -41,7 +57,7 @@ static const unsigned char image_fill_play[] = {
   0x04,0x00,0x07,0x00,0x1e,0x00,0x7e,0x00,0xfe,0x05,0xfe,0x0f,0xfe,0x1f,0xfe,0x07,
   0xfe,0x07,0xfe,0x00,0x5e,0x00,0x1e,0x00,0x04,0x00
 };
-// 暫停鍵填充圖層 (11x15)
+// Pause button fill layer (11x15)
 static const unsigned char image_fill_pause[] = {
   0x02,0x01,0x87,0x03,0x87,0x03,0x87,0x03,0x87,0x07,0x87,0x07,0x87,0x07,0x87,0x07,
   0x87,0x07,0x87,0x07,0x87,0x07,0x87,0x07,0x87,0x07,0x87,0x07,0x87,0x03,0x86,0x00
@@ -51,7 +67,7 @@ static const unsigned char image_fill_next[] = {
   0xfe,0x61,0x7e,0x60,0x7e,0x60,0x1e,0x60,0x0f,0x60,0x01,0x20
 };
 
-// [解答之書]
+// [Answer Book]
 extern const unsigned char image_book_bits[]; 
 
 const char* weekDays[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
@@ -61,7 +77,7 @@ long lastShiftTime = 0;
 const long shiftInterval = 60000; 
 int x_offset = 0;
 int y_offset = 0;
-unsigned long nextMoodSwitchTime = 0; // 下次切換表情的時間
+unsigned long nextMoodSwitchTime = 0; // Next mood switch timestamp
 bool isManualMood = false;
 AppMode lastMode = MODE_EYES;
 
@@ -82,60 +98,57 @@ void drawClockPage() {
     char sHour[3]; sprintf(sHour, "%02d", h12);
     char sMin[3]; sprintf(sMin, "%02d", currentDateTime.minute());
     
-    u8g2_gfx.setForegroundColor(SH110X_WHITE);
-    u8g2_gfx.setBackgroundColor(SH110X_BLACK);
-    u8g2_gfx.setFontMode(1); 
+    display.setTextColor(SH110X_WHITE);
 
-    u8g2_gfx.setFont(u8g2_font_profont29_tr);
+    display.setFont(&Ubuntu_Bold24pt7b);
     int currentX = 15 + x_offset;
     int BaseY = 49 + y_offset;
 
-    // 繪製小時
-    u8g2_gfx.setCursor(currentX, BaseY); 
-    u8g2_gfx.print(sHour);
+    // Draw hour digits
+    display.setCursor(currentX, BaseY); 
+    display.print(sHour);
     
-    currentX += u8g2_gfx.getUTF8Width(sHour);
-    int spaceW = u8g2_gfx.getUTF8Width(" ");
+    currentX += getAdafruitTextWidth(sHour);
+    int spaceW = getAdafruitTextWidth(" ");
     currentX += spaceW;
 
-    // 繪製冒號
+    // Draw blinking colon
     if (millis() % 1000 < 500) {
-        u8g2_gfx.setCursor(currentX, BaseY - 2); 
-        u8g2_gfx.print(":");
+        display.setCursor(currentX, BaseY - 2); 
+        display.print(":");
     }
 
-    currentX += u8g2_gfx.getUTF8Width(":"); 
+    currentX += getAdafruitTextWidth(":"); 
     currentX += spaceW;
 
-    // --- 核心修正：僅分鐘閃爍 ---
-    // 非調時模式 -> 正常顯示
-    // 調時模式下 -> 500ms 閃爍一次
+    // Minutes blink only during time-setting mode
+    // Normal mode -> always visible
+    // Time-setting mode -> blink every 500ms
     if (!isTimeSetting || (millis() % 500 < 250)) {
-        u8g2_gfx.setCursor(currentX, BaseY); 
-        u8g2_gfx.print(sMin);
+        display.setCursor(currentX, BaseY); 
+        display.print(sMin);
     }
     
-    // 繪製日期與年份
-    u8g2_gfx.setFont(u8g2_font_t0_12b_tr); 
-    u8g2_gfx.setCursor(56 + x_offset, 13 + y_offset); u8g2_gfx.print(sDay);
-    u8g2_gfx.setCursor(99 + x_offset, 13 + y_offset); u8g2_gfx.print(sYear);
-    u8g2_gfx.setCursor(5 + x_offset, 13 + y_offset); u8g2_gfx.print(sDate);
+    // Draw date and year
+    display.setFont(&Ubuntu_Bold10pt7b); 
+    display.setCursor(56 + x_offset, 13 + y_offset); display.print(sDay);
+    display.setCursor(99 + x_offset, 13 + y_offset); display.print(sYear);
+    display.setCursor(5 + x_offset, 13 + y_offset); display.print(sDate);
     
     display.display();
 }
 
-// 2. [修改] Draw Music Page (自動置中歌名)
+// 2. Draw Music Page (auto-centered track name)
 void drawMusicPage() {
     display.clearDisplay(); 
-    u8g2_gfx.setForegroundColor(SH110X_WHITE);
-    u8g2_gfx.setFontMode(1);
+    display.setTextColor(SH110X_WHITE);
 
-    // --- 狀態：正在調整音量 ---
+    // --- State: Volume adjustment ---
     if (isVolumeAdjusting) {
-        u8g2_gfx.setFont(u8g2_font_6x10_tr);
-        u8g2_gfx.setCursor(35, 20);
-        u8g2_gfx.print("VOLUME: ");
-        u8g2_gfx.print(currentVolume);
+        display.setFont(&Ubuntu_Bold10pt7b);
+        display.setCursor(35, 20);
+        display.print("VOLUME: ");
+        display.print(currentVolume);
 
         int barMaxWidth = 100;
         int barHeight = 8;
@@ -147,43 +160,43 @@ void drawMusicPage() {
         if (fillW > 0) {
             display.fillRect(barX + 2, barY + 2, fillW, barHeight - 4, SH110X_WHITE);
         }
-        u8g2_gfx.setCursor(20, 55);
-        u8g2_gfx.print("[R] Set Volume");
+        display.setCursor(20, 55);
+        display.print("[R] Set Volume");
     } 
-    // --- 狀態：正常選單 ---
+    // --- State: Normal menu ---
     else {
         display.drawXBitmap(4, 3, image_Volup_bits, 8, 6, SH110X_WHITE);
 
-        u8g2_gfx.setFont(u8g2_font_profont17_tr); 
+        display.setFont(&Ubuntu_Bold14pt7b); 
         String trackInfo;
         
-        // 使用陣列索引顯示名字，currentMusicTrack 是從 1 開始，所以要 -1
+        // Use pgm_read_ptr for PROGMEM array access
         if (currentMusicTrack >= 1 && currentMusicTrack <= totalTracks) {
-            trackInfo = String(composerNames[currentMusicTrack - 1]);
+            trackInfo = String((const char*)pgm_read_ptr(&composerNames[currentMusicTrack - 1]));
         } else {
             trackInfo = "Track " + String(currentMusicTrack);
         }
         
-        // 計算置中
-        int titleW = u8g2_gfx.getUTF8Width(trackInfo.c_str());
-        u8g2_gfx.setCursor((128 - titleW) / 2, 33); 
-        u8g2_gfx.print(trackInfo);
+        // Calculate centering
+        int titleW = getAdafruitTextWidth(trackInfo.c_str());
+        display.setCursor((128 - titleW) / 2, 33); 
+        display.print(trackInfo);
 
         // int titleX = (128 - titleW) / 2;
-        // u8g2_gfx.setCursor(titleX, 33); // 高度維持 33
-        // u8g2_gfx.print(trackInfo);
+        // display.setCursor(titleX, 33); // 高度維持 33
+        // display.print(trackInfo);
 
         display.drawXBitmap(12, 41, image_music_prev_bits, 16, 16, SH110X_WHITE);
         display.drawXBitmap(102, 41, image_music_next_bits, 16, 16, SH110X_WHITE);
 
-        // 播放/暫停按鈕 (底圖)
+        // Play/Pause button (base layer)
         if (isMusicPlaying) {
              display.drawXBitmap(58, 42, image_music_pause_bits, 12, 16, SH110X_WHITE);
         } else {
              display.drawXBitmap(59, 41, image_music_play_bits, 15, 16, SH110X_WHITE);
         }
 
-        // 2. 繪製選取填充層
+        // 2. Draw selection fill layer
         switch (musicSelection) {
             case SEL_PREV: 
                 display.drawXBitmap(13, 42, image_fill_prev, 15, 14, SH110X_WHITE);
@@ -191,10 +204,10 @@ void drawMusicPage() {
                 
             case SEL_PLAY: 
                 if (isMusicPlaying) {
-                    // 畫實心暫停填充
+                    // Draw solid pause fill
                     display.drawXBitmap(59, 42, image_fill_pause, 11, 15, SH110X_WHITE);
                 } else {
-                    // 畫實心播放填充
+                    // Draw solid play fill
                     display.drawXBitmap(59, 42, image_fill_play, 13, 13, SH110X_WHITE);
                 }
                 break;
@@ -215,8 +228,7 @@ void drawMusicPage() {
 // 3. Draw Pomodoro Setup
 void drawPomodoroSetup() {
     display.clearDisplay(); 
-    u8g2_gfx.setForegroundColor(SH110X_WHITE);
-    u8g2_gfx.setFontMode(1);
+    display.setTextColor(SH110X_WHITE);
 
     String labelStr;
     int value;
@@ -224,28 +236,32 @@ void drawPomodoroSetup() {
     else if (pomoState == POMO_SETUP_SHORT) { labelStr = "Short Break"; value = pomoShortBreak; } 
     else { labelStr = "Long Break"; value = pomoLongBreak; }
 
-    u8g2_gfx.setFont(u8g2_font_t0_12b_tr); u8g2_gfx.drawStr(39, 12, "Pomodoro");
+    display.setFont(&Ubuntu_Bold10pt7b);
+    display.setCursor(33, 12);
+    display.print("Pomodoro");
     display.drawLine(21, 15, 103, 15, SH110X_WHITE);
 
-    u8g2_gfx.setFont(u8g2_font_6x10_tr);
+    display.setFont(&Ubuntu_Bold10pt7b);
     int labelX = 7;
-    u8g2_gfx.drawStr(labelX, 40, labelStr.c_str());
+    display.setCursor(labelX, 40);
+    display.print(labelStr.c_str());
     
-    int labelW = u8g2_gfx.getUTF8Width(labelStr.c_str());
+    int labelW = getAdafruitTextWidth(labelStr.c_str());
     int labelEndX = labelX + labelW;
     int minX = 102;
     
-    u8g2_gfx.setFont(u8g2_font_t0_18b_tr);
+    display.setFont(&Ubuntu_Bold18pt7b);
     String valStr = String(value);
-    int valW = u8g2_gfx.getUTF8Width(valStr.c_str());
+    int valW = getAdafruitTextWidth(valStr.c_str());
     int centerPoint = (labelEndX + minX) / 2;
     int valX = centerPoint - (valW / 2);
     
-    u8g2_gfx.setCursor(valX, 42); u8g2_gfx.print(valStr);
+    display.setCursor(valX, 42); display.print(valStr);
 
-    u8g2_gfx.setFont(u8g2_font_6x10_tr); u8g2_gfx.drawStr(minX, 40, "min");
-    u8g2_gfx.drawStr(95, 63, "[R]"); 
-    u8g2_gfx.drawStr(15, 63, "[L]");
+    display.setFont(&Ubuntu_Bold10pt7b); 
+    display.setCursor(minX, 40); display.print("min");
+    display.setCursor(95, 63); display.print("[R]"); 
+    display.setCursor(15, 63); display.print("[L]");
 
     display.drawXBitmap(116, 57, image_arrow_curved_right_down_bits, 8, 5, SH110X_WHITE);
     display.drawXBitmap(3, 57, image_arrow_curved_left_down_bits, 8, 5, SH110X_WHITE);
@@ -256,23 +272,22 @@ void drawPomodoroSetup() {
 // 4. Draw Pomodoro Running
 void drawPomodoroRunning() {
     display.clearDisplay();
-    u8g2_gfx.setForegroundColor(SH110X_WHITE);
-    u8g2_gfx.setFontMode(1);
-    u8g2_gfx.setFont(u8g2_font_profont12_tf); 
-    u8g2_gfx.setCursor(4, 10);
-    if (pomoState == POMO_RUNNING) u8g2_gfx.print("WORK");
-    else if (pomoState == POMO_PAUSED) u8g2_gfx.print("PAUSE");
-    else u8g2_gfx.print("BREAK");
+    display.setTextColor(SH110X_WHITE);
+    display.setFont(&Ubuntu_Bold10pt7b); 
+    display.setCursor(4, 15);
+    if (pomoState == POMO_RUNNING) display.print("WORK");
+    else if (pomoState == POMO_PAUSED) display.print("PAUSE");
+    else display.print("BREAK");
 
     int mins = pomoTimerSeconds / 60;
     int secs = pomoTimerSeconds % 60;
     char timeStr[6]; sprintf(timeStr, "%02d:%02d", mins, secs);
 
-    u8g2_gfx.setFont(u8g2_font_logisoso24_tn); 
-    int timeW = u8g2_gfx.getUTF8Width(timeStr);
+    display.setFont(&Ubuntu_Bold24pt7b); 
+    int timeW = getAdafruitTextWidth(timeStr);
     int timeX = (128 - timeW) / 2;
-    u8g2_gfx.setCursor(timeX, 42); 
-    u8g2_gfx.print(timeStr);
+    display.setCursor(timeX, 45); 
+    display.print(timeStr);
 
     int barW = 120; int barH = 10; int barX = 4; int barY = 54; 
     float progress = 0.0;
@@ -297,18 +312,74 @@ void drawPomodoroRunning() {
     display.display();
 }
 
-// 5. Draw Answer Page
+// 5. Draw Answer Page (with slot machine animation)
 void drawAnswerPage() {
     display.clearDisplay();
     u8g2_gfx.setForegroundColor(SH110X_WHITE);
     u8g2_gfx.setFontMode(1); 
 
-    if (!isAnswerRevealed) {
+    // --- State: Idle (show book icon) ---
+    if (!isAnswerRevealed && !isAnswerSpinning) {
         u8g2_gfx.setFont(u8g2_font_6x10_tr);
         u8g2_gfx.drawStr(19, 11, "Book of Answers");
         u8g2_gfx.drawStr(37, 62, "Press [R]");
         display.drawXBitmap(33, 13, image_book_bits, 59, 40, SH110X_WHITE);
     } 
+    // --- State: Spinning (slot machine reel) ---
+    else if (isAnswerSpinning) {
+        unsigned long elapsed = millis() - answerSpinStartTime;
+        const unsigned long totalDuration = 2500; // 2.5 seconds total
+
+        // Quadratic ease-out deceleration
+        float progress = (float)elapsed / (float)totalDuration;
+        if (progress > 1.0f) progress = 1.0f;
+        float easedSpeed = 12.0f * (1.0f - progress) * (1.0f - progress);
+
+        // Advance the reel offset
+        answerSpinOffset += easedSpeed;
+
+        // When offset exceeds line height, shift to next answer
+        const int lineHeight = 20;
+        while (answerSpinOffset >= lineHeight) {
+            answerSpinOffset -= lineHeight;
+            // Shift all reel indices up by one
+            for (int i = 0; i < 4; i++) {
+                answerReelIndices[i] = answerReelIndices[i + 1];
+            }
+            // Pick a new random entry for the bottom slot
+            answerReelIndices[4] = random(0, answers_count);
+        }
+
+        // Draw title
+        u8g2_gfx.setFont(u8g2_font_6x10_tr);
+        u8g2_gfx.drawStr(19, 11, "Book of Answers");
+
+        // Draw separator line
+        display.drawLine(0, 14, 127, 14, SH110X_WHITE);
+
+        // Draw visible reel entries (clipped to display area 16..63)
+        u8g2_gfx.setFont(u8g2_font_ncenB10_tr);
+        int yBase = 30 - (int)answerSpinOffset;
+        for (int i = 0; i < 5; i++) {
+            int y = yBase + i * lineHeight;
+            if (y < 10 || y > 70) continue; // skip off-screen entries
+            const char* text = (const char*)pgm_read_ptr(&answers_pool[answerReelIndices[i]]);
+            int w = u8g2_gfx.getUTF8Width(text);
+            u8g2_gfx.setCursor((128 - w) / 2, y);
+            u8g2_gfx.print(text);
+        }
+
+        // Draw focus bracket in center
+        display.drawRect(2, 24, 124, 18, SH110X_WHITE);
+
+        // Animation complete: snap to final answer
+        if (elapsed >= totalDuration) {
+            isAnswerSpinning = false;
+            isAnswerRevealed = true;
+            currentAnswer = (const char*)pgm_read_ptr(&answers_pool[answerReelIndices[2]]);
+        }
+    }
+    // --- State: Revealed (show final answer) ---
     else {
         u8g2_gfx.setFont(u8g2_font_ncenB12_tr); 
         String str = String(currentAnswer);
@@ -318,7 +389,7 @@ void drawAnswerPage() {
             u8g2_gfx.setCursor(x, 40); u8g2_gfx.print(str);
         } else {
             int splitIndex = -1;
-            for (int i = 0; i < str.length(); i++) {
+            for (int i = 0; i < (int)str.length(); i++) {
                 if (str[i] == ' ') {
                     String sub = str.substring(0, i);
                     if (u8g2_gfx.getUTF8Width(sub.c_str()) < 124) splitIndex = i; else break;
@@ -352,32 +423,32 @@ void TaskUICode(void * parameter) {
 
     for(;;) {
 
-        // --- 處理睡眠時的 OLED 關閉與喚醒 ---
+        // --- Handle OLED off/on during sleep mode ---
         static bool lastAsleepState = false;
 
         if (isAsleep) {
             if (!lastAsleepState) {
-                // 關閉螢幕顯示，防止 OLED 烙印並極大化省電
+                // Turn off display to prevent OLED burn-in and maximize power saving
                 display.clearDisplay();
                 display.display();
                 
-                // Adafruit_SH1106G 通常支援這個指令來關閉面板驅動
-                // (如果編譯報錯說沒有 enableDisplay，把下面兩行註解掉即可，光是 clearDisplay 也有省電效果)
+                // Adafruit_SH1106G may support this command to disable panel driver
+                // (If compile error, comment out - clearDisplay alone still saves power)
                 // display.enableDisplay(false); 
                 
                 lastAsleepState = true;
             }
-            vTaskDelay(pdMS_TO_TICKS(100)); // 睡眠中讓 UI 任務放慢腳步，釋放資源
-            continue; // ❗ 重要：直接 continue 跳過下方的繪圖邏輯
+            vTaskDelay(pdMS_TO_TICKS(100)); // Slow down UI task during sleep to save resources
+            continue; // Important: skip all drawing logic below
         } else if (lastAsleepState) {
-            // 剛被喚醒，重新啟動面板
+            // Just woke up, re-enable panel
             // display.enableDisplay(true); 
             lastAsleepState = false;
-            isUpdateRequired = true; // 強制重繪當前模式的畫面
+            isUpdateRequired = true; // Force redraw current mode
         }
 
         if (isBrightnessChanged) {
-              display.setContrast(displayBrightness); // 由 UI 任務核心統一執行 SPI 指令
+              display.setContrast(displayBrightness); // Execute SPI command from UI task core
               isBrightnessChanged = false;
         }
         if (currentMode != lastMode) {
@@ -391,42 +462,42 @@ void TaskUICode(void * parameter) {
         switch (currentMode) {
             case MODE_EYES:
                 if (isBotTired) {
-                    // --- 3. 疲勞模式邏輯 ---
+                    // --- Tired mode logic ---
                     roboEyes.setMood(TIRED);       
                     roboEyes.setCuriosity(false);    
                     roboEyes.setIdleMode(false);     
                     roboEyes.setPosition(S);         
                 } 
                 else {
-                    // --- 2. 預設模式：加入 20% 變異機率 ---
+                    // --- Default mode: 10% mutation chance ---
                     if (millis() >= nextMoodSwitchTime) {
                         nextMoodSwitchTime = millis() + random(3000, 10000);
                         
-                        // [關鍵] 先強制復原為「正常 (a) 模式」的所有參數與解除抖動
+                        // [Key] Reset to normal mode parameters and clear flicker
                         roboEyes.setHeight(35, 35); 
                         roboEyes.setWidth(30, 30);
                         roboEyes.setBorderradius(20, 20);
-                        roboEyes.setHFlicker(false);  // 關閉搖晃互動留下來的抖動
+                        roboEyes.setHFlicker(false);  // Clear any residual shake flicker
                         roboEyes.setMood(DEFAULT);
 
-                        // 隨機產生 0~99 的數字，<20 代表 20% 的機率
+                        // Random 0~99, <10 means 10% probability
                         if (random(100) < 10) {
-                            // 進入變異 (b) 模式：隨機挑選一種變異
+                            // Enter mutation mode: randomly pick a variation
                             int mutation = random(2);
                             if (mutation == 0) {
-                                roboEyes.setBorderradius(4, 4); // 變成方形眼
+                                roboEyes.setBorderradius(4, 4); // Square eyes
                             } else {
-                                roboEyes.setWidth(12, 12);      // 寬度變小，變成細長眼
+                                roboEyes.setWidth(12, 12);      // Narrow squinting eyes
                             }
                         } else {
-                            // 80% 機率維持正常 (a) 模式
-                            // 保留你原有的邏輯，偶爾給個開心表情
+                            // 90% chance: stay in normal mode
+                            // Occasionally show happy expression
                             if (random(100) > 85) {
                                 roboEyes.setMood(HAPPY);
                             }
                         }
                         
-                        // 確保正常模式下開啟好奇心與自動移動
+                        // Ensure curiosity and idle mode are on in normal mode
                         roboEyes.setCuriosity(true);
                         roboEyes.setIdleMode(true);
                     }
@@ -448,7 +519,12 @@ void TaskUICode(void * parameter) {
                 }
                 break;
             case MODE_ANSWER:
-                if (isUpdateRequired) { drawAnswerPage(); isUpdateRequired = false; }
+                if (isAnswerSpinning) {
+                    drawAnswerPage(); // Continuous rendering during animation
+                } else if (isUpdateRequired) {
+                    drawAnswerPage();
+                    isUpdateRequired = false;
+                }
                 break;    
         }
         vTaskDelay(pdMS_TO_TICKS(16)); 

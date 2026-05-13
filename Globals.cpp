@@ -12,7 +12,7 @@ OneButton btnL(BTN_L_PIN, true);
 OneButton btnR(BTN_R_PIN, true);
 ESP32Encoder encoder;
 
-// 系統變數初始化
+// System variable initialization
 AppMode currentMode = MODE_EYES; 
 volatile bool isUpdateRequired = true;
 DateTime currentDateTime;
@@ -24,29 +24,36 @@ bool isActionInProgress = false;
 bool isAsleep = false;
 
 int displayBrightness = 150;
-volatile bool isBrightnessChanged = false; // 初始化
+volatile bool isBrightnessChanged = false; // Initialize brightness flag
 bool isTimeSetting = false;
-bool wasMusicPlayingBeforeAlarm = false; // 初始化
+bool wasMusicPlayingBeforeAlarm = false; // Initialize alarm music state
 
-// --- [新增] 音樂播放器變數初始化 ---
-MusicSelection musicSelection = SEL_PLAY; // 預設選中播放鍵
+// --- Music player variable initialization ---
+MusicSelection musicSelection = SEL_PLAY; // Default selection: play button
 bool isVolumeAdjusting = false;
-int currentVolume = 15; // 預設音量
+int currentVolume = 15; // Default volume
 
-// --- [新增] 番茄鐘預設值 ---
+// --- Pomodoro timer defaults ---
 PomoState pomoState = POMO_SETUP_WORK;
-int pomoWorkTime = 25;   // 預設 25 分
-int pomoShortBreak = 5;  // 預設 5 分
-int pomoLongBreak = 15;  // 預設 15 分
+int pomoWorkTime = 25;   // Default 25 min
+int pomoShortBreak = 5;  // Default 5 min
+int pomoLongBreak = 15;  // Default 15 min
 long pomoTimerSeconds = 0;
 int pomoRoundCounter = 0;
 int pomoTotalDuration = 0;
 
-// --- [新增] 解答之書變數初始化 ---
+// --- Answer Book variables ---
 bool isAnswerRevealed = false;
 const char* currentAnswer = "";
 
-// 書本圖示 (來自你的 Lopaka 設計)
+// Slot machine animation variables
+bool isAnswerSpinning = false;
+unsigned long answerSpinStartTime = 0;
+float answerSpinSpeed = 0.0;
+float answerSpinOffset = 0.0;
+int answerReelIndices[5] = {0, 1, 2, 3, 4};
+
+// Book icon bitmap (from Lopaka design tool)
 const unsigned char image_book_bits[] PROGMEM = {
   0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
   0x00,0xc0,0x1f,0x00,0xc0,0x3f,0x00,0x00,0x00,0x3c,0xe0,0x01,0x78,0xc0,0x01,0x00,
@@ -70,7 +77,8 @@ const unsigned char image_book_bits[] PROGMEM = {
   0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
 };
 
-const char* composerNames[] = {
+// Music track names (SD card mapping: index+3 = file number)
+const char* const composerNames[] PROGMEM = {
     "Mozart",    // 03.mp3
     "Beethoven", // 04.mp3
     "Chopin",    // 05.mp3
@@ -80,8 +88,9 @@ const char* composerNames[] = {
 };
 const int totalTracks = sizeof(composerNames) / sizeof(composerNames[0]);
 
-// 200 句解答 (存於 PROGMEM 以節省 RAM)
+// Answer pool (~250 entries, stored in PROGMEM to save RAM)
 const char* const answers_pool[] PROGMEM = {
+    // --- Actionable advice ---
     "Go for it", "Wait for it", "Too early", "It is decisive", "Unlikely",
     "Believe in it", "Trust yourself", "Follow your heart", "Ignore the doubt", "Count on it",
     "Let it go", "Keep going", "Take a break", "Try harder", "Look closer",
@@ -90,36 +99,59 @@ const char* const answers_pool[] PROGMEM = {
     "Listen carefully", "Speak up", "Forgive", "Forget it", "Hold on",
     "Let go", "Change direction", "Stay put", "Explore", "Simplify",
     "Work harder", "Rest now", "Enjoy it", "Be bold", "Be kind",
+    // --- Yes/No/Maybe ---
     "Smile", "Breath deep", "Why not?", "Definitely", "Of course",
     "Never", "Always", "Sometimes", "Once more", "Enough",
+    "Big yes", "Small no", "Do it", "Don't do it", "Absolutely",
+    // --- Time-based ---
     "It's time", "Not yet", "Soon", "Later", "Tomorrow",
     "Today", "Right now", "In a year", "Forget that", "Remember this",
+    "Yes, please", "No, thanks", "Maybe later", "Right away", "Eventually",
+    "Within weeks", "Within months", "Years away", "Any moment", "Never ever",
+    // --- Decision helpers ---
     "Choose this", "Choose that", "Both", "Neither", "All in",
-    "Step back", "Walk away", "Stop","Look up", "Look down", "Inside you", "Ask a friend", "Ask family",
-    "Trust luck", "Hard work pays", "Dream big", "Wake up", "Sleep on it",
-    "It will pass", "Good things coming", "Be ready", "Watch out", "Safe choice",
-    "Wild guess", "Sure thing", "No way", "Possible", "Impossible",
-    "Drink warm water", "take some rest", "Wear a jacket", "Eat more!",
+    "Step back", "Walk away", "Stop", "Look up", "Look down",
+    "Inside you", "Ask a friend", "Ask family", "Trust luck", "Hard work pays",
+    "Dream big", "Wake up", "Sleep on it", "It will pass", "Good things coming",
+    "Be ready", "Watch out", "Safe choice", "Wild guess", "Sure thing",
+    "No way", "Possible", "Impossible", "Worth it", "Waste of time",
+    // --- Self-care ---
+    "Drink warm water", "Take some rest", "Wear a jacket", "Eat more!",
     "Treat yourself", "Take a sick day", "Go shopping!", "Take a deep breath",
     "You deserve a break", "Drink some coffee", "Have some tea", "Stop working!",
     "Time for a vacation", "Listen to music", "Close your laptop", "Protect your eyes",
-    "Worth it", "Waste of time", "Big yes", "Small no", "Do it",
-    "Don't do it", "Keep secret", "Tell everyone", "Help others", "Help yourself",
-    "Be honest",  "Stay true", "Fake it", "Make it",
+    // --- Life wisdom ---
+    "Keep secret", "Tell everyone", "Help others", "Help yourself",
+    "Be honest", "Stay true", "Fake it", "Make it",
     "Break it", "Fix it", "Leave it", "Take it", "Give it",
     "Save it", "Spend it", "Invest", "Wait and see", "Take charge",
-    "Let other lead", "Cooperate", "Compete", "Win", "Learn",
+    "Let others lead", "Cooperate", "Compete", "Win", "Learn",
     "Grow", "Shrink", "Expand", "Focus", "Distract",
     "Clear your mind", "Follow logic", "Follow instinct", "Be practical", "Be creative",
     "Serious", "Have fun", "Relax", "Hurry", "Slow down",
+    // --- Direction ---
     "Speed up", "Turn left", "Turn right", "Go straight", "Go back",
     "New start", "End it", "Continue", "Pause", "Resume",
     "Accept it", "Reject it", "Negotiate", "Ask nicely", "Just take it", "Wait",
     "See the signs", "Ignore signs", "Trust fate", "Make fate", "Destiny",
-    "Luck",
-    "Yes, please", "No, thanks", "Maybe later", "Right away", "Eventually",
-    "Within weeks", "Within months", "Years away", "Any moment", "Never ever",
-    "For sure", "I doubt it", "Who knows?", "Only you know", "Ask nature"
+    // --- Fate & certainty ---
+    "Luck", "For sure", "I doubt it", "Who knows?", "Only you know", "Ask nature",
+    // --- NEW: Motivation ---
+    "You got this", "Keep pushing", "Almost there", "One more try", "Stay strong",
+    "Rise up", "Bounce back", "No regrets", "Own it", "Shine bright",
+    "Stay hungry", "Think bigger", "Dig deeper", "Stand tall", "Press on",
+    // --- NEW: Quirky & fun ---
+    "Ask your cat", "Flip a coin", "Check the moon", "Roll a dice", "Read a book",
+    "Dance first", "Sing it out", "Nap on it", "Eat snacks", "Touch grass",
+    "Hug someone", "Count to ten", "Close your eyes", "Feel the wind", "Just vibes",
+    // --- NEW: Introspection ---
+    "Look within", "Know yourself", "Find balance", "Seek peace", "Breathe out",
+    "Let it flow", "Stay grounded", "Open your mind", "Free yourself", "Be still",
+    "Trust the path", "Embrace change", "Accept chaos", "Find joy", "Stay curious",
+    // --- NEW: Bold moves ---
+    "Take the leap", "Build something", "Ship it now", "Break the mold", "Go big",
+    "Say yes", "Say no", "Walk faster", "Run for it", "Jump in",
+    "Make waves", "Be fearless", "Start fresh", "Level up", "Power through"
 };
 
 const int answers_count = sizeof(answers_pool) / sizeof(answers_pool[0]);
