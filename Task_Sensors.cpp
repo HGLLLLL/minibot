@@ -197,16 +197,62 @@ void checkSensorsAndCommandEyes() {
     float totalAccel = sqrt(a.acceleration.x * a.acceleration.x + a.acceleration.y * a.acceleration.y + a.acceleration.z * a.acceleration.z);
 
     bool hasInteracted = false;
+    
+    // 用來追蹤搖晃與互動狀態的靜態變數
+    static bool wasTilted = false;
+    static unsigned long tiltEndTime = 0;
+    static bool pendingHappyFeedback = false;
+
+
+
+    // 判斷是否處於傾斜/搖晃狀態
+    bool isTilted = (a.acceleration.x > 3.0 || a.acceleration.x < -3.0);
+
+    // 1. 劇烈搖晃 (Confused)
     if (totalAccel > 30.0) { 
         hasInteracted = true; isActionInProgress = true; actionStartTime = millis();
         roboEyes.setIdleMode(false);
         roboEyes.anim_confused(); roboEyes.anim_confused(); roboEyes.anim_confused();
+        
+        // 重置所有互動計時狀態
+        wasTilted = false; 
+        pendingHappyFeedback = false;
+        
     }
-    else if (a.acceleration.x > 3.0) { hasInteracted = true; roboEyes.setIdleMode(false); roboEyes.setPosition(W); }
-    else if (a.acceleration.x < -3.0) { hasInteracted = true; roboEyes.setIdleMode(false); roboEyes.setPosition(E); }
+    // 2. 普通傾斜/搖晃 (看左/看右)
+    else if (isTilted) { 
+        hasInteracted = true; 
+        roboEyes.setIdleMode(false); 
+        if (a.acceleration.x > 3.0) roboEyes.setPosition(W);
+        else roboEyes.setPosition(E);
+        
+        wasTilted = true;
+        pendingHappyFeedback = false; // 如果連續搖晃，就一直重置等待
+        
+    }
+    // 3. 恢復平穩
     else { 
         if (!isBotTired) roboEyes.setIdleMode(true); 
+        
+        // 偵測搖晃「剛剛結束」的瞬間
+        if (wasTilted) {
+            wasTilted = false;
+            tiltEndTime = millis();
+            pendingHappyFeedback = true; // 準備觸發延遲的 Happy 反饋
+        }
     }
+
+    if (pendingHappyFeedback && (millis() - tiltEndTime >= 500)) {
+        roboEyes.setHeight(35, 35); 
+        roboEyes.setWidth(30, 30);
+        roboEyes.setBorderradius(20, 20);
+        
+        // roboEyes.setPosition(DEFAULT); // 確保眼睛位置置中
+        roboEyes.setMood(HAPPY);
+        pendingHappyFeedback = false;  // 觸發完畢
+    }
+
+
 
     if (hasInteracted) lastInteractionTime = millis();
 }

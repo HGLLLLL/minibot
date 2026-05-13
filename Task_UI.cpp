@@ -392,23 +392,38 @@ void TaskUICode(void * parameter) {
             case MODE_EYES:
                 if (isBotTired) {
                     // --- 3. 疲勞模式邏輯 ---
-                    roboEyes.setMood(TIRED);       // 疲勞時回到預設表情
-                    roboEyes.setCuriosity(false);    // 關閉好奇心 (防止眼睛亂飄)
-                    roboEyes.setIdleMode(false);     // 關閉自動移動
-                    roboEyes.setPosition(S);         // 固定看下方
-                    // 眨眼功能會因為 roboEyes.setAutoblinker(true, ...) 繼續運作
+                    roboEyes.setMood(TIRED);       
+                    roboEyes.setCuriosity(false);    
+                    roboEyes.setIdleMode(false);     
+                    roboEyes.setPosition(S);         
                 } 
                 else {
-                    // --- 2. 預設模式：隨機切換開心/預設 ---
+                    // --- 2. 預設模式：加入 20% 變異機率 ---
                     if (millis() >= nextMoodSwitchTime) {
-                        // 隨機決定下一階段持續多久 (3~8秒)
-                        nextMoodSwitchTime = millis() + random(3000, 8000);
+                        nextMoodSwitchTime = millis() + random(3000, 10000);
                         
-                        // 隨機切換表情 (50% 機率)
-                        if (random(100) > 85) {
-                            roboEyes.setMood(HAPPY);
+                        // [關鍵] 先強制復原為「正常 (a) 模式」的所有參數與解除抖動
+                        roboEyes.setHeight(35, 35); 
+                        roboEyes.setWidth(30, 30);
+                        roboEyes.setBorderradius(20, 20);
+                        roboEyes.setHFlicker(false);  // 關閉搖晃互動留下來的抖動
+                        roboEyes.setMood(DEFAULT);
+
+                        // 隨機產生 0~99 的數字，<20 代表 20% 的機率
+                        if (random(100) < 10) {
+                            // 進入變異 (b) 模式：隨機挑選一種變異
+                            int mutation = random(2);
+                            if (mutation == 0) {
+                                roboEyes.setBorderradius(4, 4); // 變成方形眼
+                            } else {
+                                roboEyes.setWidth(12, 12);      // 寬度變小，變成細長眼
+                            }
                         } else {
-                            roboEyes.setMood(DEFAULT);
+                            // 80% 機率維持正常 (a) 模式
+                            // 保留你原有的邏輯，偶爾給個開心表情
+                            if (random(100) > 85) {
+                                roboEyes.setMood(HAPPY);
+                            }
                         }
                         
                         // 確保正常模式下開啟好奇心與自動移動
