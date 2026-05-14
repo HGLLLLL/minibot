@@ -42,9 +42,17 @@ long pomoTimerSeconds = 0;
 int pomoRoundCounter = 0;
 int pomoTotalDuration = 0;
 
-// --- [新增] 解答之書變數初始化 ---
+// --- Answer Book variables ---
 bool isAnswerRevealed = false;
 const char* currentAnswer = "";
+
+// Slot machine animation variables
+bool isAnswerSpinning = false;
+unsigned long answerSpinStartTime = 0;
+float answerSpinSpeed = 0.0;
+float answerSpinOffset = 0.0;
+int answerReelIndices[5] = {0, 1, 2, 3, 4};
+
 
 // 書本圖示 (來自你的 Lopaka 設計)
 const unsigned char image_book_bits[] PROGMEM = {
@@ -71,12 +79,11 @@ const unsigned char image_book_bits[] PROGMEM = {
 };
 
 const char* composerNames[] = {
-    "Mozart",    // 03.mp3
-    "Beethoven", // 04.mp3
-    "Chopin",    // 05.mp3
-    "Richard",   // 06.mp3
-    "Bach",      // 07.mp3
-    "Vivaldi"    // 08.mp3
+    "Camp Fire",    // 03.mp3
+    "Rain", // 04.mp3
+    "Coffee Shop",    // 05.mp3
+    "Ocean",   // 06.mp3
+    "Dark Noise"    // 07.mp3
 };
 const int totalTracks = sizeof(composerNames) / sizeof(composerNames[0]);
 

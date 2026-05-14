@@ -297,18 +297,76 @@ void drawPomodoroRunning() {
     display.display();
 }
 
-// 5. Draw Answer Page
+// 5. Draw Answer Page (with slot machine animation)
 void drawAnswerPage() {
     display.clearDisplay();
     u8g2_gfx.setForegroundColor(SH110X_WHITE);
     u8g2_gfx.setFontMode(1); 
 
-    if (!isAnswerRevealed) {
+    // --- State: Idle (show book icon) ---
+    if (!isAnswerRevealed && !isAnswerSpinning) {
         u8g2_gfx.setFont(u8g2_font_6x10_tr);
         u8g2_gfx.drawStr(19, 11, "Book of Answers");
         u8g2_gfx.drawStr(37, 62, "Press [R]");
         display.drawXBitmap(33, 13, image_book_bits, 59, 40, SH110X_WHITE);
     } 
+    // --- State: Spinning (slot machine reel) ---
+    else if (isAnswerSpinning) {
+        unsigned long elapsed = millis() - answerSpinStartTime;
+        const unsigned long totalDuration = 2500; // 2.5 seconds total
+
+        // Quadratic ease-out deceleration
+        float progress = (float)elapsed / (float)totalDuration;
+        if (progress > 1.0f) progress = 1.0f;
+        float easedSpeed = 12.0f * (1.0f - progress) * (1.0f - progress);
+
+        // Advance the reel offset
+        answerSpinOffset += easedSpeed;
+
+        // When offset exceeds line height, shift to next answer
+        const int lineHeight = 20;
+        while (answerSpinOffset >= lineHeight) {
+            answerSpinOffset -= lineHeight;
+            // Shift all reel indices up by one
+            for (int i = 0; i < 4; i++) {
+                answerReelIndices[i] = answerReelIndices[i + 1];
+            }
+            // Pick a new random entry for the bottom slot
+            answerReelIndices[4] = random(0, answers_count);
+        }
+
+        // Draw visible reel entries (clipped to display area 16..63)
+        u8g2_gfx.setFont(u8g2_font_ncenB10_tr);
+        
+        int yBase = 35 - (int)answerSpinOffset; 
+        
+        for (int i = 0; i < 5; i++) {
+            int y = yBase + i * lineHeight;
+            if (y < 10 || y > 70) continue; // skip off-screen entries
+            const char* text = (const char*)pgm_read_ptr(&answers_pool[answerReelIndices[i]]);
+            int w = u8g2_gfx.getUTF8Width(text);
+            u8g2_gfx.setCursor((128 - w) / 2, y);
+            u8g2_gfx.print(text);
+        }
+
+        // Draw focus bracket in center
+        display.drawRect(2, 24, 124, 18, SH110X_WHITE);
+
+        // Animation complete: snap to final answer
+        if (elapsed >= totalDuration) {
+            isAnswerSpinning = false;
+            isAnswerRevealed = true;
+            
+            // [關鍵修正] 根據最後停止的位移量，判斷哪個答案在框框內
+            int finalIndex = 0;
+            if (answerSpinOffset >= (lineHeight / 2.0)) {
+                finalIndex = 1; 
+            }
+            
+            currentAnswer = (const char*)pgm_read_ptr(&answers_pool[answerReelIndices[finalIndex]]);
+        }
+    }
+    // --- State: Revealed (show final answer) ---
     else {
         u8g2_gfx.setFont(u8g2_font_ncenB12_tr); 
         String str = String(currentAnswer);
@@ -318,7 +376,7 @@ void drawAnswerPage() {
             u8g2_gfx.setCursor(x, 40); u8g2_gfx.print(str);
         } else {
             int splitIndex = -1;
-            for (int i = 0; i < str.length(); i++) {
+            for (int i = 0; i < (int)str.length(); i++) {
                 if (str[i] == ' ') {
                     String sub = str.substring(0, i);
                     if (u8g2_gfx.getUTF8Width(sub.c_str()) < 124) splitIndex = i; else break;
@@ -338,6 +396,7 @@ void drawAnswerPage() {
     }
     display.display();
 }
+
 
 void TaskUICode(void * parameter) {
     if(!display.begin(0, true)) { for(;;); }
@@ -448,8 +507,13 @@ void TaskUICode(void * parameter) {
                 }
                 break;
             case MODE_ANSWER:
-                if (isUpdateRequired) { drawAnswerPage(); isUpdateRequired = false; }
-                break;    
+                if (isAnswerSpinning) {
+                    drawAnswerPage(); // Continuous rendering during animation
+                } else if (isUpdateRequired) {
+                    drawAnswerPage();
+                    isUpdateRequired = false;
+                }
+                break;      
         }
         vTaskDelay(pdMS_TO_TICKS(16)); 
     }

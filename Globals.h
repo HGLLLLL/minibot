@@ -51,11 +51,19 @@ extern int pomoRoundCounter;
 extern int pomoTotalDuration; 
 
 // 解答之書變數
+// Answer Book variables
 extern bool isAnswerRevealed;     
 extern const char* currentAnswer; 
 extern const char* const answers_pool[]; 
 extern const int answers_count;   
 extern const unsigned char image_book_bits[]; 
+
+// Answer Book slot machine animation
+extern bool isAnswerSpinning;
+extern unsigned long answerSpinStartTime;
+extern float answerSpinSpeed;
+extern float answerSpinOffset;
+extern int answerReelIndices[5];
 
 // --- [新增] 音樂播放器狀態變數 ---
 enum MusicSelection {

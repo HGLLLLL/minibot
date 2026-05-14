@@ -121,9 +121,9 @@ void handleBtnRClick() {
                         myDFPlayer.pause();
                         isMusicPlaying = false;
                     } else {
-                        // 因為你的音樂是從 03.mp3 開始，所以索引要 + 2
-                        // currentMusicTrack 為 1 時，撥放第 3 首 (Mozart)
-                        myDFPlayer.play(currentMusicTrack + 2); 
+                        // [修改] 改用 playMp3Folder，徹底解決 FAT 排序問題
+                        // currentMusicTrack 為 1 時，撥放 mp3/0003.mp3
+                        myDFPlayer.playMp3Folder(currentMusicTrack + 2); 
                         isMusicPlaying = true;
                     }
                     break;
@@ -131,12 +131,24 @@ void handleBtnRClick() {
                 case SEL_NEXT: 
                     currentMusicTrack++;
                     if (currentMusicTrack > totalTracks) currentMusicTrack = 1; 
+                    
+                    // [新增] 如果原本正在播放音樂，切換曲目後直接命令 DFPlayer 播放新歌
+                    if (isMusicPlaying) {
+                        myDFPlayer.playMp3Folder(currentMusicTrack + 2);
+                    }
+                    
                     isUpdateRequired = true;
                     break;
 
                 case SEL_PREV: 
                     currentMusicTrack--;
                     if (currentMusicTrack < 1) currentMusicTrack = totalTracks;
+                    
+                    // [新增] 如果原本正在播放音樂，切換曲目後直接命令 DFPlayer 播放新歌
+                    if (isMusicPlaying) {
+                        myDFPlayer.playMp3Folder(currentMusicTrack + 2);
+                    }
+                    
                     isUpdateRequired = true;
                     break;
 
@@ -166,11 +178,14 @@ void handleBtnRClick() {
         }
     }
     else if (currentMode == MODE_ANSWER) {
-        if (!isAnswerRevealed) {
-            int randomIndex = random(0, answers_count);
-            // 修正 PROGMEM 讀取方式
-            currentAnswer = (const char*)pgm_read_ptr(&answers_pool[randomIndex]); 
-            isAnswerRevealed = true;
+        if (!isAnswerRevealed && !isAnswerSpinning) {
+            // Initialize reel with random starting indices
+            for (int i = 0; i < 5; i++) {
+                answerReelIndices[i] = random(0, answers_count);
+            }
+            answerSpinOffset = 0.0;
+            answerSpinStartTime = millis();
+            isAnswerSpinning = true;
             isUpdateRequired = true;
         }
     }
@@ -274,8 +289,8 @@ void updatePomodoroTimer() {
 
             // 如果響鈴前有在聽歌，現在恢復播放
             if (wasMusicPlayingBeforeAlarm) {
-                if (currentMusicTrack == 1) myDFPlayer.play(TRACK_MOZART); 
-                else myDFPlayer.play(currentMusicTrack + 3);
+                // [修改] 修正原本 +3 的 Bug，並統一只用 currentMusicTrack + 2
+                myDFPlayer.playMp3Folder(currentMusicTrack + 2);
                 isMusicPlaying = true;
                 wasMusicPlayingBeforeAlarm = false; // 重置狀態
             }
@@ -299,7 +314,8 @@ void updatePomodoroTimer() {
                 // 記錄當前音樂狀態
                 wasMusicPlayingBeforeAlarm = isMusicPlaying; 
                 
-                myDFPlayer.play(TRACK_ALARM); 
+                // [修改] 改用 playMp3Folder 播放番茄鐘鈴聲 (對應 mp3/0002.mp3)
+                myDFPlayer.playMp3Folder(TRACK_ALARM); 
                 isMusicPlaying = false; // 暫時標記為停止，避免 UI 顯示播放中
                 
                 pomoState = POMO_WAIT_ALARM; 
